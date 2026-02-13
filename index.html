@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto AutoTrader Pro - 자동매매 시뮬레이터</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/recharts@2.5.0/dist/Recharts.js"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen">
+    <div id="app"></div>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function CryptoAutoTrader() {
+            const [exchange, setExchange] = useState('upbit');
+            const [tradingMode, setTradingMode] = useState('test');
+            const [isTrading, setIsTrading] = useState(false);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            
+            const [strategy, setStrategy] = useState({
+                type: 'volatility_breakout',
+                kValue: 0.5,
+                targetCoin: 'BTC',
+                investmentRatio: 100,
+                stopLoss: 5,
+                takeProfit: 10,
+            });
+
+            const [accountInfo, setAccountInfo] = useState({
+                balance: 5000000,
+                totalValue: 5000000,
+                profitLoss: 0,
+                profitLossPercent: 0
+            });
+
+            const [prices, setPrices] = useState({
+                BTC: { current: 145200000, change: 2340000, changePercent: 1.61 },
+                ETH: { current: 4820000, change: -15000, changePercent: -0.31 },
+                XRP: { current: 850, change: 12, changePercent: 1.43 }
+            });
+
+            const [logs, setLogs] = useState([
+                { time: new Date().toLocaleTimeString('ko-KR'), type: 'success', message: '✅ 프로그램이 시작되었습니다' },
+                { time: new Date().toLocaleTimeString('ko-KR'), type: 'info', message: '📊 테스트 모드로 실행 중입니다' },
+            ]);
+
+            const [trades, setTrades] = useState([]);
+
+            // 가격 업데이트 시뮬레이션
+            useEffect(() => {
+                if (isTrading) {
+                    const interval = setInterval(() => {
+                        setPrices(prev => ({
+                            BTC: {
+                                current: prev.BTC.current + (Math.random() - 0.5) * 1000000,
+                                change: (Math.random() - 0.5) * 2000000,
+                                changePercent: (Math.random() - 0.5) * 3
+                            },
+                            ETH: {
+                                current: prev.ETH.current + (Math.random() - 0.5) * 50000,
+                                change: (Math.random() - 0.5) * 100000,
+                                changePercent: (Math.random() - 0.5) * 2
+                            },
+                            XRP: {
+                                current: prev.XRP.current + (Math.random() - 0.5) * 10,
+                                change: (Math.random() - 0.5) * 20,
+                                changePercent: (Math.random() - 0.5) * 2
+                            }
+                        }));
+                    }, 3000);
+                    return () => clearInterval(interval);
+                }
+            }, [isTrading]);
+
+            // 자동 거래 시뮬레이션
+            useEffect(() => {
+                if (isTrading) {
+                    const tradeInterval = setInterval(() => {
+                        const shouldTrade = Math.random() > 0.7; // 30% 확률로 거래
+                        if (shouldTrade) {
+                            const isBuy = Math.random() > 0.5;
+                            const price = prices[strategy.targetCoin].current;
+                            const amount = 0.01;
+                            
+                            const newTrade = {
+                                time: new Date().toLocaleTimeString('ko-KR'),
+                                type: isBuy ? 'BUY' : 'SELL',
+                                coin: strategy.targetCoin,
+                                price: Math.round(price),
+                                amount: amount,
+                                total: Math.round(price * amount)
+                            };
+                            
+                            setTrades(prev => [newTrade, ...prev.slice(0, 19)]);
+                            
+                            addLog('success', `${isBuy ? '매수' : '매도'} 체결: ${strategy.targetCoin} ${amount} @ ₩${Math.round(price).toLocaleString()}`);
+                            
+                            // 수익 업데이트
+                            const profit = isBuy ? -newTrade.total : newTrade.total * 1.02; // 2% 수익 가정
+                            setAccountInfo(prev => ({
+                                ...prev,
+                                profitLoss: prev.profitLoss + Math.round(profit * 0.02),
+                                profitLossPercent: ((prev.profitLoss + Math.round(profit * 0.02)) / prev.balance * 100).toFixed(2)
+                            }));
+                        }
+                    }, 10000); // 10초마다
+                    
+                    return () => clearInterval(tradeInterval);
+                }
+            }, [isTrading, prices, strategy.targetCoin]);
+
+            const addLog = (type, message) => {
+                const newLog = {
+                    time: new Date().toLocaleTimeString('ko-KR'),
+                    type,
+                    message
+                };
+                setLogs(prev => [newLog, ...prev.slice(0, 49)]);
+            };
+
+            const toggleTrading = () => {
+                if (isTrading) {
+                    setIsTrading(false);
+                    addLog('warning', '⏸️ 자동매매가 중지되었습니다');
+                } else {
+                    setIsTrading(true);
+                    addLog('success', '▶️ 자동매매가 시작되었습니다');
+                    addLog('info', `📈 전략: ${strategy.type}, 코인: ${strategy.targetCoin}, K값: ${strategy.kValue}`);
+                }
+            };
+
+            return (
+                <div className="min-h-screen p-4 md:p-8 text-white">
+                    {/* 헤더 */}
+                    <div className="max-w-7xl mx-auto mb-8">
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div>
+                                <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-2">
+                                    Crypto AutoTrader Pro
+                                </h1>
+                                <p className="text-slate-400">암호화폐 자동매매 시뮬레이터 (데모 버전)</p>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                                <div className="px-4 py-2 bg-slate-800/70 rounded-xl border border-slate-700">
+                                    <div className="text-xs text-slate-400">거래소</div>
+                                    <div className="font-semibold">{exchange === 'upbit' ? '업비트' : '빗썸'}</div>
+                                </div>
+                                <div className="px-4 py-2 rounded-xl border bg-emerald-500/20 border-emerald-500/50 text-emerald-400">
+                                    <div className="text-xs opacity-80">모드</div>
+                                    <div className="font-semibold">시뮬레이션</div>
+                                </div>
+                                <button
+                                    onClick={toggleTrading}
+                                    className={`px-6 py-3 rounded-xl font-semibold transition-all shadow-lg ${
+                                        isTrading
+                                            ? 'bg-rose-500 hover:bg-rose-600'
+                                            : 'bg-emerald-500 hover:bg-emerald-600'
+                                    }`}
+                                >
+                                    {isTrading ? '⏸️ 중지' : '▶️ 시작'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 탭 네비게이션 */}
+                    <div className="max-w-7xl mx-auto mb-6">
+                        <div className="flex gap-2 bg-slate-800/50 p-2 rounded-2xl border border-slate-700/50">
+                            {[
+                                { id: 'dashboard', label: '📊 대시보드' },
+                                { id: 'strategy', label: '⚡ 전략 설정' },
+                                { id: 'settings', label: '⚙️ 설정' },
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex-1 px-4 py-2.5 rounded-xl font-semibold transition-all ${
+                                        activeTab === tab.id
+                                            ? 'bg-blue-500 text-white'
+                                            : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 메인 콘텐츠 */}
+                    <div className="max-w-7xl mx-auto">
+                        {activeTab === 'dashboard' && (
+                            <div className="space-y-6">
+                                {/* 주요 지표 */}
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-slate-700/50">
+                                        <div className="text-sm text-slate-400 mb-1">총 자산</div>
+                                        <div className="text-2xl font-bold">₩{accountInfo.totalValue.toLocaleString()}</div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-slate-700/50">
+                                        <div className="text-sm text-slate-400 mb-1">실현 수익</div>
+                                        <div className={`text-2xl font-bold ${accountInfo.profitLoss >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            ₩{accountInfo.profitLoss.toLocaleString()}
+                                        </div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-slate-700/50">
+                                        <div className="text-sm text-slate-400 mb-1">거래 횟수</div>
+                                        <div className="text-2xl font-bold">{trades.length}건</div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-slate-700/50">
+                                        <div className="text-sm text-slate-400 mb-1">실행 상태</div>
+                                        <div className="text-2xl font-bold">{isTrading ? '✅ 작동중' : '⏸️ 대기중'}</div>
+                                    </div>
+                                </div>
+
+                                {/* 실시간 시세 */}
+                                <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-slate-700/50">
+                                    <h3 className="text-lg font-bold mb-4">📈 실시간 시세</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {Object.entries(prices).map(([coin, data]) => (
+                                            <div key={coin} className="p-4 bg-slate-800/50 rounded-xl">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <div className="font-semibold text-lg">{coin}/KRW</div>
+                                                        <div className="text-2xl font-bold mt-1">₩{Math.round(data.current).toLocaleString()}</div>
+                                                    </div>
+                                                    <div className={`text-right ${data.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        <div className="font-semibold">{data.changePercent >= 0 ? '▲' : '▼'} {Math.abs(data.changePercent).toFixed(2)}%</div>
+                                                        <div className="text-sm">{data.changePercent >= 0 ? '+' : ''}₩{Math.round(data.change).toLocaleString()}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 최근 거래 및 로그 */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-slate-700/50">
+                                        <h3 className="text-lg font-bold mb-4">📋 최근 거래</h3>
+                                        <div className="space-y-3 max-h-80 overflow-y-auto">
+                                            {trades.length > 0 ? trades.slice(0, 10).map((trade, idx) => (
+                                                <div key={idx} className="flex justify-between p-3 bg-slate-800/50 rounded-xl">
+                                                    <div>
+                                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                                            trade.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                                                        }`}>
+                                                            {trade.type === 'BUY' ? '매수' : '매도'}
+                                                        </span>
+                                                        <span className="ml-2 text-sm text-slate-300">{trade.coin}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="font-semibold">{trade.amount} {trade.coin}</div>
+                                                        <div className="text-xs text-slate-400">{trade.time}</div>
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <div className="text-center text-slate-500 py-8">아직 거래 내역이 없습니다</div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-slate-700/50">
+                                        <h3 className="text-lg font-bold mb-4">📝 시스템 로그</h3>
+                                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                                            {logs.map((log, idx) => (
+                                                <div key={idx} className="flex gap-3 p-2 text-sm">
+                                                    <span className="text-slate-500 text-xs">{log.time}</span>
+                                                    <span className={`flex-1 ${
+                                                        log.type === 'success' ? 'text-emerald-400' :
+                                                        log.type === 'warning' ? 'text-amber-400' :
+                                                        log.type === 'error' ? 'text-rose-400' : 'text-slate-300'
+                                                    }`}>
+                                                        {log.message}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'strategy' && (
+                            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-slate-700/50">
+                                <h3 className="text-xl font-bold mb-6">⚡ 거래 전략 설정</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-300 mb-2">전략 유형</label>
+                                        <select
+                                            value={strategy.type}
+                                            onChange={(e) => setStrategy({...strategy, type: e.target.value})}
+                                            className="w-full bg-slate-800/70 border border-slate-600 text-white rounded-xl px-4 py-3"
+                                        >
+                                            <option value="volatility_breakout">변동성 돌파 전략</option>
+                                            <option value="moving_average">이동평균 크로스</option>
+                                            <option value="rsi">RSI 기반 전략</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-300 mb-2">대상 코인</label>
+                                        <select
+                                            value={strategy.targetCoin}
+                                            onChange={(e) => setStrategy({...strategy, targetCoin: e.target.value})}
+                                            className="w-full bg-slate-800/70 border border-slate-600 text-white rounded-xl px-4 py-3"
+                                        >
+                                            <option value="BTC">BTC (비트코인)</option>
+                                            <option value="ETH">ETH (이더리움)</option>
+                                            <option value="XRP">XRP (리플)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-300 mb-2">
+                                            K 값: {strategy.kValue}
+                                        </label>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.1"
+                                            value={strategy.kValue}
+                                            onChange={(e) => setStrategy({...strategy, kValue: parseFloat(e.target.value)})}
+                                            className="w-full h-2 bg-slate-700 rounded-lg"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-300 mb-2">
+                                            투자 비율: {strategy.investmentRatio}%
+                                        </label>
+                                        <input
+                                            type="range"
+                                            min="10"
+                                            max="100"
+                                            step="10"
+                                            value={strategy.investmentRatio}
+                                            onChange={(e) => setStrategy({...strategy, investmentRatio: parseInt(e.target.value)})}
+                                            className="w-full h-2 bg-slate-700 rounded-lg"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-300 mb-2">손절매 (%)</label>
+                                        <input
+                                            type="number"
+                                            value={strategy.stopLoss}
+                                            onChange={(e) => setStrategy({...strategy, stopLoss: parseFloat(e.target.value)})}
+                                            className="w-full bg-slate-800/70 border border-slate-600 text-white rounded-xl px-4 py-3"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-300 mb-2">익절매 (%)</label>
+                                        <input
+                                            type="number"
+                                            value={strategy.takeProfit}
+                                            onChange={(e) => setStrategy({...strategy, takeProfit: parseFloat(e.target.value)})}
+                                            className="w-full bg-slate-800/70 border border-slate-600 text-white rounded-xl px-4 py-3"
+                                        />
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => addLog('success', '✅ 전략이 저장되었습니다')}
+                                    className="w-full mt-6 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-xl"
+                                >
+                                    전략 저장
+                                </button>
+                            </div>
+                        )}
+
+                        {activeTab === 'settings' && (
+                            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl p-6 border border-slate-700/50">
+                                <h3 className="text-xl font-bold mb-6">⚙️ 설정</h3>
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-300 mb-3">거래소 선택</label>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <button
+                                                onClick={() => setExchange('upbit')}
+                                                className={`p-6 rounded-xl border-2 ${
+                                                    exchange === 'upbit'
+                                                        ? 'bg-blue-500/20 border-blue-500'
+                                                        : 'bg-slate-800/50 border-slate-600'
+                                                }`}
+                                            >
+                                                <div className="text-xl font-bold">업비트</div>
+                                            </button>
+                                            <button
+                                                onClick={() => setExchange('bithumb')}
+                                                className={`p-6 rounded-xl border-2 ${
+                                                    exchange === 'bithumb'
+                                                        ? 'bg-blue-500/20 border-blue-500'
+                                                        : 'bg-slate-800/50 border-slate-600'
+                                                }`}
+                                            >
+                                                <div className="text-xl font-bold">빗썸</div>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                                        <div className="text-sm text-blue-200">
+                                            💡 <strong>시뮬레이션 모드</strong><br/>
+                                            이것은 데모 버전입니다. 실제 거래는 이루어지지 않으며, 가상 데이터로 작동합니다.
+                                            실제 거래를 원하시면 서버 버전을 설치해주세요.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 푸터 */}
+                    <div className="max-w-7xl mx-auto mt-12 text-center text-slate-500 text-sm">
+                        <p>⚠️ 이 프로그램은 교육 목적의 시뮬레이터입니다. 실제 거래에서 발생하는 손실에 대해 책임지지 않습니다.</p>
+                        <p className="mt-2">암호화폐 투자는 높은 위험을 수반합니다. 신중하게 투자하세요.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        // 렌더링
+        const root = ReactDOM.createRoot(document.getElementById('app'));
+        root.render(<CryptoAutoTrader />);
+    </script>
+</body>
+</html>
